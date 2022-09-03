@@ -1,0 +1,133 @@
+﻿<Window x:Class="NameTwister.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+		  xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
+		  xmlns:shared="clr-namespace:Shared"
+        mc:Ignorable="d"
+        Title="NameTwister"
+		  WindowStartupLocation="CenterScreen"
+		  Width="700" Height="500" MinWidth="500" MinHeight="450"
+>
+	<Window.CommandBindings>
+		<CommandBinding Command="ApplicationCommands.Delete" Executed="DeleteCommand_Executed" CanExecute="DeleteCommand_CanExecute" />
+	</Window.CommandBindings>
+	<Grid Margin="10" TextBlock.FontSize="14">
+		<Grid.ColumnDefinitions>
+			<ColumnDefinition Width="*" />
+			<ColumnDefinition Width="Auto" />	<!-- Buttons -->
+		</Grid.ColumnDefinitions>
+		<Grid.RowDefinitions>
+			<RowDefinition Height="Auto" />		<!-- Help -->
+			<RowDefinition Height="*" />			<!-- File list -->
+			<RowDefinition Height="Auto" />		<!-- Options & Buttons -->
+		</Grid.RowDefinitions>
+
+		<Label Grid.Row="0" Grid.ColumnSpan="2" Margin="0" FontStyle="Italic" Content="Drag and drop files or folders onto the below list control." />
+		<ListView Grid.Row="1" Grid.ColumnSpan="2" Margin="5"
+			x:Name="FileList"
+			AllowDrop="True" DragOver="ListView_DragOver" Drop="ListView_Drop"
+			ItemsSource="{Binding TheViewModel.Files}" IsSynchronizedWithCurrentItem="True"
+		>
+			<ListView.InputBindings>
+				<!--
+					Sets e.Parameter to the selected MyFile but we don't need it because CurrentItem is MyFile.
+					CommandParameter="{Binding SelectedItem, RelativeSource={RelativeSource FindAncestor, AncestorType=ListView}}"
+				-->
+				<KeyBinding Command="ApplicationCommands.Delete" Key="Delete" CommandParameter="{Binding SelectedItem, RelativeSource={RelativeSource FindAncestor, AncestorType=ListView}}" />
+			</ListView.InputBindings>
+			<ListView.View>
+				<GridView AllowsColumnReorder="False">
+					<GridViewColumn Header="Current Name" DisplayMemberBinding="{Binding SourceName}" />
+					<GridViewColumn Header="Future Name" DisplayMemberBinding="{Binding TargetName}" />
+					<GridViewColumn Header="Folder" DisplayMemberBinding="{Binding FolderPath}" />
+				</GridView>
+			</ListView.View>
+			<ListView.ItemContainerStyle>
+				<Style>
+					<Style.Triggers>
+						<DataTrigger Binding="{Binding IsSameName}" Value="True">
+							<Setter Property="Control.Foreground" Value="Gray" />
+						</DataTrigger>
+						<DataTrigger Binding="{Binding IsConflict}" Value="True">
+							<Setter Property="Control.Foreground" Value="Red" />
+						</DataTrigger>
+					</Style.Triggers>
+				</Style>
+			</ListView.ItemContainerStyle>
+		</ListView>
+
+		<StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Vertical">
+			<Grid>
+				<Grid.ColumnDefinitions>
+					<ColumnDefinition Width="Auto" />	<!-- Label -->
+					<ColumnDefinition Width="*" />		<!-- Field -->
+				</Grid.ColumnDefinitions>
+				<Grid.RowDefinitions>
+					<RowDefinition Height="Auto" />		<!-- Help -->
+					<RowDefinition Height="Auto" />		<!-- Source -->
+					<RowDefinition Height="Auto" />		<!-- Target -->
+				</Grid.RowDefinitions>
+				<Grid.Resources>
+					<Style x:Key="StyleHyperlink" >
+						<Style.Setters>
+							<Setter Property="TextBlock.TextDecorations" Value="Underline" />
+							<Setter Property="Control.Foreground" Value="Blue" />
+						</Style.Setters>
+					</Style>
+				</Grid.Resources>
+
+				<TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Margin="5" FontStyle="Italic" Text="Press CTRL+Del to delete an entry from history." />
+
+				<Label Grid.Row="1" Grid.Column="0" Style="{StaticResource StyleHyperlink}">
+					<TextBlock Text="Source expression:" Style="{StaticResource StyleHyperlink}" />
+					<i:Interaction.Behaviors>
+						<shared:HyperlinkBehavior Hyperlink="https://docs.microsoft.com/en-us/dotnet/standard/base-types/regular-expressions" />
+					</i:Interaction.Behaviors>
+				</Label>
+				<ComboBox Grid.Row="1" Grid.Column="1" Margin="5"
+					x:Name="SourceComboBox"
+					IsEditable="True"
+					ItemsSource="{Binding TheViewModel.SourceExpressions}"
+					SelectedValue="{Binding TheViewModel.SelectedSourceExpression}"
+					Text="{Binding TheViewModel.EnteredSourceExpression, UpdateSourceTrigger=PropertyChanged}"
+				>
+					<i:Interaction.Behaviors>
+						<shared:ComboBoxHistoryBehavior Entries="{Binding TheViewModel.SourceExpressions}" Tag="SourceHistory" ConfirmationButton="{x:Reference Name=Confirm}" />
+					</i:Interaction.Behaviors>
+				</ComboBox>
+
+				<Label Grid.Row="2" Grid.Column="0" Style="{StaticResource StyleHyperlink}">
+					<TextBlock Text="Target expression:" Style="{StaticResource StyleHyperlink}" />
+					<i:Interaction.Behaviors>
+						<shared:HyperlinkBehavior Hyperlink="https://docs.microsoft.com/en-us/dotnet/standard/base-types/regular-expressions" />
+					</i:Interaction.Behaviors>
+				</Label>
+				<ComboBox Grid.Row="2" Grid.Column="1" Margin="5"
+					IsEditable="True"
+					x:Name="TargetComboBox"
+					ItemsSource="{Binding TheViewModel.TargetExpressions}"
+					SelectedValue="{Binding TheViewModel.SelectedTargetExpression}"
+					Text="{Binding TheViewModel.EnteredTargetExpression, UpdateSourceTrigger=PropertyChanged}"
+				>
+					<i:Interaction.Behaviors>
+						<shared:ComboBoxHistoryBehavior Entries="{Binding TheViewModel.TargetExpressions}" Tag="TargetHistory" ConfirmationButton="{x:Reference Name=Confirm}" />
+					</i:Interaction.Behaviors>
+				</ComboBox>
+			</Grid>
+
+			<CheckBox Margin="5" VerticalContentAlignment="Center" Content="Use case-sensitive matching" IsChecked="{Binding TheViewModel.IsCaseSensitiveMatching}" Checked="CheckBox_Changed" Unchecked="CheckBox_Changed" />
+			<CheckBox Margin="5" VerticalContentAlignment="Center" Content="Replace all matches" IsChecked="{Binding TheViewModel.IsReplaceAllMatches}" Checked="CheckBox_Changed" Unchecked="CheckBox_Changed" />
+			<StackPanel Orientation="Horizontal">
+				<CheckBox Margin="5" VerticalAlignment="Center" VerticalContentAlignment="Center" Content="Replace '#' with sequence number starting at:" IsChecked="{Binding TheViewModel.IsSequenced}" Checked="CheckBox_Changed" Unchecked="CheckBox_Changed" />
+				<TextBox Margin="5" Padding="0,2" HorizontalContentAlignment="Right" MinWidth="80" FontSize="14" Text="{Binding TheViewModel.SequenceStartText, FallbackValue=1}" TextChanged="TextBox_TextChanged" />
+			</StackPanel>
+		</StackPanel>
+
+		<UniformGrid Grid.Row="2" Grid.Column="1" Rows="2" VerticalAlignment="Bottom">
+			<Button Margin="5" Padding="10,5" Content="Rename" IsEnabled="{Binding HasItems, ElementName=FileList}" Click="RenameButton_Click" x:Name="Confirm" />
+			<Button Margin="5" Padding="10,5" Content="Close" Click="CloseButton_Click" />
+		</UniformGrid>
+	</Grid>
+</Window>
