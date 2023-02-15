@@ -36,8 +36,8 @@ with "b" or all text starting with 0 and ending with a period.
 
 ### Regular Expression Syntax
 
-Pattern |
-:-------------: | :-----
+| Pattern | |
+| :-------------: | :----- |
 `.` | Matches any single character.
 `[ ]` | Indicates a character class. Matches any character inside the brackets. (For example, `[abc]` matches "a", "b", and "c")
 `^` | If this metacharacter occurs at the start of a character class, it negates the character class. A negated character class matches any character except those inside the brackets. (For example, `[^abc]` matches all characters except "a", "b", and "c")<br><br>If `^` is at the beginning of the regular expression, it matches the beginning of the input. (For example, ^[abc] will only match input that begins with "a", "b", or "c")
@@ -59,8 +59,8 @@ Pattern |
 
 You can also use abbreviations, such as `\d` instead of `[0-9]`.
 
-Pattern |
-:-------------: | :-----
+| Pattern | |
+| :-------------: | :----- |
 `\d` | Any decimal digit
 `\D` | Any non-decimal digit
 `\w` | Any word character
@@ -74,8 +74,8 @@ Pattern |
 
 If you have a set of numbered files that you want to renumber, it's possible that the filenames might "collide" during renaming. For example:
 
-Current Name | New Name
-:------------- | :-----
+| Current Name | New Name |
+| :------------- | :----- |
 test1.txt | test1.txt
 test11.txt | test12.txt
 test2.txt | test3.txt
@@ -92,8 +92,8 @@ In this example, you can change the target expression to **`test_#.txt`**. (Note
 You might have a set of numbered files and when you get more than nine, you want
 to add zeroes so that the file names all have the same number of digits.
 
-Current Name | New Name
-:------------- | :-----
+| Current Name | New Name |
+| :------------- | :----- |
 test1.txt | test01.txt
 test2.txt | test02.txt
 test3.txt | test03.txt
