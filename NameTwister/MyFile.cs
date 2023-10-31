@@ -83,7 +83,13 @@ public class MyFile : Shared.MyNotifyPropertyChanged, IEqualityComparer<MyFile>
 			SourceName = TargetName;
 			IsConflict = false;
 		}
-		catch (IOException ex)
+		catch (Exception ex) when ((ex is IOException) || (ex is UnauthorizedAccessException) || (ex is PathTooLongException))
+		{
+			MessageBox.Show($"Unable to rename \"{SourcePath()}\" to \"" + TargetPath() + "\"." + Environment.NewLine + Environment.NewLine + ex.Message);
+			IsConflict = true;
+			return false;
+		}
+		catch (Exception ex)
 		{
 			MessageBox.Show($"Unable to rename \"{SourcePath()}\" to \"" + TargetPath() + "\"." + Environment.NewLine + Environment.NewLine + ex.Message);
 			IsConflict = true;
