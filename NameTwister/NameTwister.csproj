@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net6.0-windows</TargetFramework>
+    <TargetFramework>net8.0-windows7.0</TargetFramework>
     <UseWPF>true</UseWPF>
     <RootNamespace>NameTwister</RootNamespace>
     <AssemblyName>NameTwister</AssemblyName>
@@ -10,7 +10,7 @@
     <ApplicationIcon>NameTwister.ico</ApplicationIcon>
     <Nullable>enable</Nullable>
     <Version>3.3.3</Version>
-    <Copyright>(c) 2015-2023 12noon, Stefan K.S. Tucker</Copyright>
+    <Copyright>(c) 2015-2024 12noon, Stefan K.S. Tucker</Copyright>
     <Company>12noon</Company>
     <Authors>12noon, Stefan K.S. Tucker</Authors>
     <PlatformTarget>x64</PlatformTarget>
@@ -30,7 +30,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.31" />
+    <PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.77" />
   </ItemGroup>
 
   <ItemGroup>

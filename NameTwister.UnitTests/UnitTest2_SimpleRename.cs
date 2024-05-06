@@ -26,7 +26,7 @@ public class UnitTest2_SimpleRename
 	[TestInitialize]
 	public void TestSetup()
 	{
-		WorkingDirectory = new DirectoryInfo(Path.Combine(TestContext.TestRunDirectory, "Testing"));
+		WorkingDirectory = new DirectoryInfo(Path.Combine(TestContext.TestRunDirectory!, "Testing"));
 		WorkingDirectory.Create();
 		Assert.IsTrue(WorkingDirectory.Exists);
 	}
