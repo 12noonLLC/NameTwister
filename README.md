@@ -1,4 +1,4 @@
-# NameTwister
+# NameTwister by [12noon LLC](https://12noon.com)
 
 NameTwister can help you rename files in complicated (or easy) ways.
 
