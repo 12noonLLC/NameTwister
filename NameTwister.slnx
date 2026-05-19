@@ -1,0 +1,25 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="ARM64" />
+    <Platform Name="x64" />
+  </Configurations>
+  <Folder Name="/Solution Items/">
+    <File Path=".github/workflows/build.yml" />
+    <File Path=".runsettings" />
+    <File Path="devtools/BuildMsStore.cmd" />
+    <File Path="Directory.Build.props" />
+    <File Path="LICENSE" />
+    <File Path="README.md" />
+  </Folder>
+  <Project Path="NameTwister.Package/NameTwister.Package.wapproj" Type="c7167f0d-bc9f-4e6e-afe1-012c56b48db5" Id="b943e2e7-cf94-454a-ab4c-1991786d00e5">
+    <Deploy />
+  </Project>
+  <Project Path="NameTwister.UnitTests/NameTwister.UnitTests.csproj">
+    <Platform Project="x64" />
+    <Build Solution="Release|x64" Project="false" />
+  </Project>
+  <Project Path="NameTwister/NameTwister.csproj">
+    <Platform Project="x64" />
+  </Project>
+</Solution>

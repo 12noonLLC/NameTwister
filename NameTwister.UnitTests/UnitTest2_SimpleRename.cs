@@ -2,6 +2,8 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.IO;
 using System.Collections.Generic;
+using NameTwister;
+using System;
 
 namespace NameTwisterUnitTests;
 
@@ -9,7 +11,7 @@ namespace NameTwisterUnitTests;
 public class UnitTest2_SimpleRename
 {
 	public TestContext TestContext { get; set; }
-	public static DirectoryInfo WorkingDirectory { get; private set; }
+	public static DirectoryInfo? WorkingDirectory { get; private set; }
 
 
 	[ClassInitialize]
@@ -26,7 +28,9 @@ public class UnitTest2_SimpleRename
 	[TestInitialize]
 	public void TestSetup()
 	{
-		WorkingDirectory = new DirectoryInfo(Path.Combine(TestContext.TestRunDirectory!, "Testing"));
+		string testRunDirectory = TestContext.TestRunDirectory ?? TestContext.ResultsDirectory ?? throw new InvalidOperationException("Test run directory is not available.");
+		Assert.IsFalse(string.IsNullOrWhiteSpace(testRunDirectory));
+		WorkingDirectory = new DirectoryInfo(Path.Combine(testRunDirectory, "Testing"));
 		WorkingDirectory.Create();
 		Assert.IsTrue(WorkingDirectory.Exists);
 	}
@@ -35,8 +39,16 @@ public class UnitTest2_SimpleRename
 	[TestCleanup]
 	public void TestTeardown()
 	{
-		WorkingDirectory.Delete(recursive: true);
-		Assert.IsFalse(WorkingDirectory.Exists);
+		if (WorkingDirectory is null)
+		{
+			return;
+		}
+
+		if (WorkingDirectory.Exists)
+		{
+			WorkingDirectory.Delete(recursive: true);
+			Assert.IsFalse(WorkingDirectory.Exists);
+		}
 	}
 
 
@@ -47,7 +59,7 @@ public class UnitTest2_SimpleRename
 	public void TestSimpleTextRenameModel()
 	{
 		// create "cat" file in WorkingDirectory
-		NameTwister.MyFile myfile = new(CreateTestFile("cat"));
+		MyFile myfile = new(CreateTestFile("cat"));
 
 		// target
 		Assert.IsTrue(myfile.IsSameName);
@@ -77,7 +89,7 @@ public class UnitTest2_SimpleRename
 						bSequence: false,
 						sequenceStart: 1,
 						bReplaceAll: false,
-						files: new List<(string, string, NameTwister.MyFile?)>
+						files: new List<(string, string, MyFile?)>
 						{
 								("Cat", "dog", null),
 								("cate", "doge", null),
@@ -91,7 +103,7 @@ public class UnitTest2_SimpleRename
 						bSequence: false,
 						sequenceStart: 1,
 						bReplaceAll: false,
-						files: new List<(string, string, NameTwister.MyFile?)>
+						files: new List<(string, string, MyFile?)>
 						{
 								("Cat", "dog", null),
 								("cate", "cate", null),
@@ -111,7 +123,7 @@ public class UnitTest2_SimpleRename
 						bSequence: false,
 						sequenceStart: 1,
 						bReplaceAll: false,
-						files: new List<(string, string, NameTwister.MyFile?)>
+						files: new List<(string, string, MyFile?)>
 						{
 								("cat", "dog", null),
 								("Cote", "doge", null),
@@ -126,7 +138,7 @@ public class UnitTest2_SimpleRename
 						bSequence: false,
 						sequenceStart: 1,
 						bReplaceAll: false,
-						files: new List<(string, string, NameTwister.MyFile?)>
+						files: new List<(string, string, MyFile?)>
 						{
 								("cat", "cat", null),
 								("COte", "doGe", null),
@@ -147,7 +159,7 @@ public class UnitTest2_SimpleRename
 						bSequence: true,
 						sequenceStart: 1,
 						bReplaceAll: false,
-						files: new List<(string, string, NameTwister.MyFile?)>
+						files: new List<(string, string, MyFile?)>
 						{
 								("acUte", "adog01e", null),
 								("cat", "dog02", null),
@@ -162,7 +174,7 @@ public class UnitTest2_SimpleRename
 						bSequence: true,
 						sequenceStart: 1,
 						bReplaceAll: false,
-						files: new List<(string, string, NameTwister.MyFile?)>
+						files: new List<(string, string, MyFile?)>
 						{
 								("acute", "adog01e", null),
 								("Cat", "Cat", null),
@@ -182,7 +194,7 @@ public class UnitTest2_SimpleRename
 						bSequence: true,
 						sequenceStart: 8,
 						bReplaceAll: false,
-						files: new List<(string, string, NameTwister.MyFile?)>
+						files: new List<(string, string, MyFile?)>
 						{
 								("acUte", "ado08ge", null),
 								("cat", "do09g", null),
@@ -197,7 +209,7 @@ public class UnitTest2_SimpleRename
 						bSequence: true,
 						sequenceStart: 7,
 						bReplaceAll: false,
-						files: new List<(string, string, NameTwister.MyFile?)>
+						files: new List<(string, string, MyFile?)>
 						{
 								("acUte", "adog7e", null),
 								("cat", "dog8", null),
@@ -220,7 +232,7 @@ public class UnitTest2_SimpleRename
 						bSequence: true,
 						sequenceStart: 1,
 						bReplaceAll: false,
-						files: new List<(string filenameSource, string filenameTarget, NameTwister.MyFile? myFile)>
+						files: new List<(string filenameSource, string filenameTarget, MyFile? myFile)>
 						{
 								(filenameSource: "aCute", filenameTarget: "aCutdog01e", myFile: null),
 								(filenameSource: "cat", filenameTarget: "catdog02", myFile: null),
@@ -240,7 +252,7 @@ public class UnitTest2_SimpleRename
 						bSequence: true,
 						sequenceStart: 1,
 						bReplaceAll: false,
-						files: new List<(string filenameSource, string filenameTarget, NameTwister.MyFile? myFile)>
+						files: new List<(string filenameSource, string filenameTarget, MyFile? myFile)>
 						{
 								(filenameSource: "acuTe", filenameTarget: "acuTdog01e", myFile: null),
 								(filenameSource: "caT", filenameTarget: "caTdog02", myFile: null),
@@ -262,7 +274,7 @@ public class UnitTest2_SimpleRename
 						bSequence: false,
 						sequenceStart: 1,
 						bReplaceAll: true,
-						files: new List<(string filenameSource, string filenameTarget, NameTwister.MyFile? myFile)>
+						files: new List<(string filenameSource, string filenameTarget, MyFile? myFile)>
 						{
 								(filenameSource: "1CatDogFrogDogDogFishDog", filenameTarget: "1CatXYZFrogXYZXYZFishXYZ", myFile: null),
 								(filenameSource: "2CatdogFrogDogDogFishDog", filenameTarget: "2CatXYZFrogXYZXYZFishXYZ", myFile: null),
@@ -282,7 +294,7 @@ public class UnitTest2_SimpleRename
 						bSequence: false,
 						sequenceStart: 1,
 						bReplaceAll: true,
-						files: new List<(string filenameSource, string filenameTarget, NameTwister.MyFile? myFile)>
+						files: new List<(string filenameSource, string filenameTarget, MyFile? myFile)>
 						{
 								(filenameSource: "1CatDogFrogDogDogFishDog", filenameTarget: "1CatXYZFrogXYZXYZFishXYZ", myFile: null),
 								(filenameSource: "2CatdogFrogDogDogFishDog", filenameTarget: "2CatdogFrogXYZXYZFishXYZ", myFile: null),
@@ -309,10 +321,10 @@ public class UnitTest2_SimpleRename
 
 	private static void TestRenames(string strSource, string strTarget,
 												bool bCaseSensitive, bool bSequence, int sequenceStart, bool bReplaceAll,
-												List<(string filenameSource, string filenameTarget, NameTwister.MyFile? myFile)> files)
+												List<(string filenameSource, string filenameTarget, MyFile? myFile)> files)
 	{
 		// set up
-		NameTwister.ViewModel vm = new()
+		ViewModel vm = new()
 		{
 			EnteredSourceExpression = strSource,
 			EnteredTargetExpression = strTarget,
@@ -326,7 +338,7 @@ public class UnitTest2_SimpleRename
 		foreach (var item in files.ToList())
 		{
 			// Add file to file list
-			NameTwister.MyFile myfile = new(CreateTestFile(item.filenameSource));
+			MyFile myfile = new(CreateTestFile(item.filenameSource));
 			vm.Files.Add(myfile);
 			Assert.IsTrue(myfile.IsSameName);
 
@@ -338,7 +350,7 @@ public class UnitTest2_SimpleRename
 		vm.UpdateFileList();
 
 		// verify constructed target information
-		foreach (var item in files)
+		foreach ((string filenameSource, string filenameTarget, MyFile? myFile) item in files)
 		{
 			Assert.IsNotNull(item.myFile);
 			System.Diagnostics.Debug.Assert(item.myFile is not null);
@@ -360,7 +372,7 @@ public class UnitTest2_SimpleRename
 		vm.RenameFiles();
 
 		// verify target files
-		foreach (NameTwister.MyFile item in vm.Files)
+		foreach (MyFile item in vm.Files)
 		{
 			Assert.IsTrue(File.Exists(item.TargetPath()));
 			Assert.IsFalse(item.IsConflict);
@@ -376,7 +388,7 @@ public class UnitTest2_SimpleRename
 	[TestMethod]
 	public void TestConflict()
 	{
-		NameTwister.ViewModel vm = new()
+		ViewModel vm = new()
 		{
 			EnteredSourceExpression = "c",
 			EnteredTargetExpression = "C",
@@ -386,7 +398,7 @@ public class UnitTest2_SimpleRename
 		};
 
 		// Add file to file list
-		NameTwister.MyFile myfile = new(CreateTestFile("cat"));
+		MyFile myfile = new(CreateTestFile("cat"));
 		vm.Files.Add(myfile);
 		Assert.IsTrue(myfile.IsSameName);
 
@@ -410,7 +422,7 @@ public class UnitTest2_SimpleRename
 		 *		cat2
 		 * rename both to "dog" => CONFLICT
 		 */
-		NameTwister.ViewModel vm = new()
+		ViewModel vm = new()
 		{
 			EnteredSourceExpression = @"cat\d",
 			EnteredTargetExpression = @"dog",
@@ -420,9 +432,9 @@ public class UnitTest2_SimpleRename
 		};
 
 		// Add file to file list
-		foreach (var name in new[] { "cat1", "cat2", })
+		foreach (string? name in new[] { "cat1", "cat2", })
 		{
-			NameTwister.MyFile myfile = new(CreateTestFile(name));
+			MyFile myfile = new(CreateTestFile(name));
 			vm.Files.Add(myfile);
 			Assert.IsTrue(myfile.IsSameName);
 		}
@@ -451,7 +463,7 @@ public class UnitTest2_SimpleRename
 		string pathCat = CreateTestFile("cat");
 		CreateTestFile("dog");
 
-		NameTwister.ViewModel vm = new()
+		ViewModel vm = new()
 		{
 			EnteredSourceExpression = @"cat",
 			EnteredTargetExpression = @"dog",
@@ -460,7 +472,7 @@ public class UnitTest2_SimpleRename
 			IsReplaceAllMatches = false,
 		};
 
-		NameTwister.MyFile myFile = new(pathCat);
+		MyFile myFile = new(pathCat);
 		vm.Files.Add(myFile);
 
 		vm.UpdateFileList();
@@ -482,7 +494,7 @@ public class UnitTest2_SimpleRename
 		 *	rename "cat\d" to "Cat#"
 		 *	cat4 will conflict while being renamed.
 		 */
-		NameTwister.ViewModel vm = new()
+		ViewModel vm = new()
 		{
 			EnteredSourceExpression = @"cat\d",
 			EnteredTargetExpression = @"Cat#",
@@ -514,6 +526,7 @@ public class UnitTest2_SimpleRename
 	/// <returns>Path to the new file</returns>
 	private static string CreateTestFile(string filename)
 	{
+		Assert.IsNotNull(WorkingDirectory);
 		string filePath = Path.Combine(WorkingDirectory.FullName, filename);
 		using FileStream fstream = File.Create(filePath);
 		return filePath;

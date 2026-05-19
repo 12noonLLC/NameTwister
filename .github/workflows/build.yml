@@ -1,0 +1,404 @@
+﻿# .github/workflows/build.yml
+#
+# Build and Release workflow for NameTwister
+#
+# - Trigger on push to any branch, on version tags (e.g., v1.2.3), or on manual dispatch.
+# - Using a version tag will signal ~~an MSIX build for the MS Store and~~ a standalone EXE build.
+# - If a version tag (e.g., v1.2.3) is pushed, create a GitHub release for that version if not already present.
+# - If the version tag is not on the 'main' branch, mark the GitHub release as 'draft'.
+# - Manual dispatch builds the project but does not create a GitHub release.
+
+name: Build and Release
+
+on:
+  push:
+    branches: [ '**' ]
+    tags:
+      - 'v*' # Match version tags like v1.2.3
+    paths-ignore:
+      - '**/*.gitignore'
+      - '**/*.gitattributes'
+      - '**/*.md'
+      - 'LICENSE'
+  pull_request:
+    branches: [ main, yaml ]
+    paths-ignore:
+      - '**/*.gitignore'
+      - '**/*.gitattributes'
+      - '**/*.md'
+      - 'LICENSE'
+  workflow_dispatch:
+
+env:
+  # Path to the project files relative to the root of the project.
+  PROJECT_APP_PATH:      NameTwister/NameTwister.csproj
+  PROJECT_TESTS_PATH:    NameTwister.UnitTests/NameTwister.UnitTests.csproj
+  PROJECT_WAP_PATH:      NameTwister.Package\NameTwister.Package.wapproj
+  PROJECT_MANIFEST_PATH: NameTwister.Package\Package.appxmanifest
+  DIRECTORY_BUILD_PROPS: .\Directory.Build.props
+
+  # Configuration type to build.
+  # You can convert this to a build matrix if you need coverage of multiple configuration types.
+  # https://docs.github.com/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
+  BUILD_CONFIGURATION: Release
+
+  # Local Action constants
+  PUBLISH_FILES_PATH: ${{ github.workspace }}\release
+  PUBLISH_FILES_PATH_LINUX: ${{ github.workspace }}/release
+  ARTIFACT_NAME: NameTwister
+  ARTIFACT_PACKAGE: package-nametwister
+
+concurrency:
+  group: nametwister-${{ github.event_name }}
+  cancel-in-progress: true
+
+# Jobs are run in parallel unless `needs` is specified.
+# https://docs.github.com/en/actions/learn-github-actions/managing-complex-workflows#creating-dependent-jobs
+jobs:
+  build:
+    name: 🏗 Build and test
+    # TODO: Change back when Windows 2025 with VS2026 is available. (4 May 2026)
+    #runs-on: windows-latest
+    runs-on: windows-2025-vs2026
+    permissions:
+      contents: read
+
+    steps:
+      - name: 🗒️ Output variables
+        run: |
+          echo "🚀 Building..."
+          echo "GITHUB_SHA: ${{ github.sha }}"
+          echo "GITHUB_REF: ${{ github.ref }}"
+          echo "GITHUB_REF_NAME: ${{ github.ref_name }}"
+          echo "GITHUB_REF_TYPE: ${{ github.ref_type }}"
+          echo "GITHUB_EVENT_NAME: ${{ github.event_name }}"
+          echo "GITHUB_EVENT_BASEREF: ${{ github.event.base_ref }}"
+          echo "GITHUB_EVENT_COMMIT_MSG: ${{ github.event.head_commit.message }}"
+          #export GITHUB_REF_TYPE="${{ github.ref_type }}"
+
+      # https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations#yaml-anchors-and-aliases
+      - &step_checkout
+        name: 🧾 Check out repository
+        uses: actions/checkout@v6
+
+      - &step_compare_versions
+        name: 🔎 Display app version in props
+        shell: pwsh
+        run: |
+          # 1. Read VersionPrefix from Directory.Build.props
+          [xml]$props = Get-Content "${{ env.DIRECTORY_BUILD_PROPS }}"
+          $versionPrefix = ([string]$props.Project.PropertyGroup.VersionPrefix).Trim()
+          if ([string]::IsNullOrWhiteSpace($versionPrefix))
+          {
+            throw "VersionPrefix not found in ${{ env.DIRECTORY_BUILD_PROPS }}"
+          }
+
+          # 2. Read manifest Identity.Version
+          [xml]$manifest = Get-Content "${{ env.PROJECT_MANIFEST_PATH }}"
+          $manifestVersion = ([string]$manifest.Package.Identity.Version).Trim()
+          if ([string]::IsNullOrWhiteSpace($manifestVersion))
+          {
+            throw "Identity.Version not found in ${{ env.PROJECT_MANIFEST_PATH }}"
+          }
+
+          # 3. Normalize to 4-part versions
+          $expected = "$versionPrefix.0"
+          # 4. Compare manifest version
+          if ($manifestVersion -ne $expected)
+          {
+            throw "Manifest version mismatch. Directory.Build.props: $versionPrefix | Package.appxmanifest expected: $expected | actual: $manifestVersion"
+          }
+
+          Write-Host "Version check successful:"
+          Write-Host "  Directory.Build.props: $versionPrefix"
+          Write-Host "  Package.appxmanifest:  $manifestVersion"
+
+      - &step_setup_dotnet
+        name: 🛠️ Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          #dotnet-version: '10.0.x'
+          #dotnet-quality: ga
+          global-json-file: global.json
+
+      - &step_setup_msbuild
+        name: 🧰 Set up MSBuild
+        uses: microsoft/setup-msbuild@v3
+        with:
+          msbuild-architecture: x64
+          vs-version: '[18.0,19.0)'
+
+      # RID added for MSBuild of MSIX
+      # "Without --runtime win-x64, dotnet restore only downloads packages
+      # needed for the current "Any CPU" / generic target.
+      # It doesn't download platform-specific runtime packs.
+      # Adding --runtime win-x64 to the restore command tells
+      # NuGet upfront to download the platform-specific runtime
+      # packs so they're available when the publish step runs."
+      - &step_restore_nuget
+        name: 📦 Restore NuGet packages
+        run: |
+          dotnet restore "${{ env.PROJECT_APP_PATH }}" --runtime win-x64
+          dotnet restore "${{ env.PROJECT_TESTS_PATH }}"
+
+      - name: 🪟 Build application
+        run: |
+          dotnet build `
+            "${{ env.PROJECT_APP_PATH }}" `
+            --configuration ${{ env.BUILD_CONFIGURATION }} `
+            --no-restore
+
+      - name: 🏗 Build unit tests
+        run: |
+          dotnet build `
+            "${{ env.PROJECT_TESTS_PATH }}" `
+            --configuration ${{ env.BUILD_CONFIGURATION }} `
+            --no-restore
+
+      - name: 💯 Run unit tests
+        timeout-minutes: 3
+        shell: pwsh
+        run: |
+          dotnet test `
+            --project "${{ env.PROJECT_TESTS_PATH }}" `
+            --configuration ${{ env.BUILD_CONFIGURATION }} `
+            --no-restore `
+            --no-build `
+            --no-ansi `
+            --no-progress `
+            --output detailed
+
+  build_publish:
+    name: 📦 Build MS Store and Standalone
+    needs: build
+    if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+    # TODO: Change back when Windows 2025 with VS2026 is available. (4 May 2026)
+    #runs-on: windows-latest
+    runs-on: windows-2025-vs2026
+    environment: production
+    permissions:
+      contents: read
+
+    steps:
+      - *step_checkout
+      - *step_compare_versions
+      - *step_setup_dotnet
+      - *step_setup_msbuild
+      - *step_restore_nuget
+
+      - name: 📁 Publish standalone app
+        run: |
+          dotnet publish `
+            "${{ env.PROJECT_APP_PATH }}" `
+            --configuration ${{ env.BUILD_CONFIGURATION }} `
+            --no-restore `
+            --property:Platform=x64 `
+            --property:RuntimeIdentifier=win-x64 `
+            --property:PublishProtocol=FileSystem `
+            --property:SelfContained=true `
+            --property:PublishReadyToRun=false `
+            --property:PublishTrimmed=false `
+            --property:PublishSingleFile=true `
+            --property:PublishDir="${{ env.PUBLISH_FILES_PATH }}\"
+
+      # NameTwister_Package_#.##.###.0_x64_bundle.msixupload
+      - name: 🪟 Build MSIX bundle (.msixupload) for Microsoft Store
+        run: |
+          msbuild `
+            "${{ env.PROJECT_WAP_PATH }}" `
+            -property:Configuration=${{ env.BUILD_CONFIGURATION }} `
+            -property:Platform=x64 `
+            -property:UapAppxPackageBuildMode=StoreUpload `
+            -property:AppxPackageDir="${{ env.PUBLISH_FILES_PATH }}" `
+            -verbosity:quiet
+
+      - name: ❌ Delete unwanted files from deployment folder
+        run: |
+          Remove-Item -Force -ErrorAction SilentlyContinue -Recurse -Path "${{ env.PUBLISH_FILES_PATH }}\*_Package_*_Test"
+
+      - name: 📂 Copy extra files to deployment folder
+        run: |
+          Copy-Item -Destination "${{ env.PUBLISH_FILES_PATH }}" -Path LICENSE
+
+      - name: 📤 Upload deployment folder
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.ARTIFACT_PACKAGE }}
+          path: ${{ env.PUBLISH_FILES_PATH }}
+          if-no-files-found: error
+          retention-days: 1
+
+  #
+  # Production release must be on 'main' and the tag must begin with 'v'.
+  # If a release already exists, do not create the release.
+  #
+  # Manual dispatch must build but must not create a release.
+  #
+  # NORMAL -- make a bunch of commits and then push:
+  # If this is a push without a version tag, build but do not create a release.
+  #
+  # TEST -- on a different branch, such as "yaml," create a tag and then push it:
+  # If this is a push elsewhere with a v1.2.3 tag, create a DRAFT release for GitHub.
+  #
+  # RELEASE -- create tag and push it:
+  # If this is a push on `main` of a v1.2.3 tag, create a PRODUCTION release for GitHub.
+  #
+  # •	Manual dispatch: Only the build job runs, no release is created.
+  # •	Normal push (no tag): Only the build job runs, no release is created.
+  # •	Tag push on other branch: Both build and release jobs run, draft release.
+  # •	Tag push on main: Both build and release jobs run, production release.
+  #
+  # | Scenario        | Build | Build MSIX | Release Job | Release Type | Notes               |
+  # |-----------------|-------|------------|-------------|--------------|---------------------|
+  # | Normal (no tag) | Yes   | No         | No          | N/A          | Only build          |
+  # | Manual dispatch | Yes   | No         | No          | N/A          | Only build          |
+  # | Test (other br) | Yes   | Yes        | Yes         | Draft        | Tag on other branch |
+  # | Release (main)  | Yes   | Yes        | Yes         | Production   | Tag on main         |
+  #
+  release:
+    name: 🚀 Create GitHub release
+    # We require the 'build' job because it runs unit tests.
+    needs: [ build, build_publish ]
+    if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: 🧾 Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: 📥 Download deployment folder as a build artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ env.ARTIFACT_PACKAGE }}
+          path: ${{ env.PUBLISH_FILES_PATH_LINUX }}
+
+      - name: 🗒️ List folder
+        run: ls -la "${{ env.PUBLISH_FILES_PATH_LINUX }}"
+
+      - name: 🏷️ Get short SHA of the tag
+        id: tag_sha
+        run: |
+          short_sha=$(git rev-parse --short HEAD)
+          echo "short_sha=$short_sha" >> $GITHUB_OUTPUT
+          echo "short_sha=$short_sha"
+
+      # If the workflow was inititated by pushing a tag,
+      # we need to know if it is on the 'main' branch.
+      - name: 🧪 Check if tag is on main
+        id: tag_on_main
+        run: |
+          # -n : non-empty, -z : unset or empty
+          BASE_BRANCH=$(git branch -r --contains $GITHUB_SHA | grep 'main' || true)
+          if [[ -n "$BASE_BRANCH" ]]; then
+            echo "on_main=true" >> $GITHUB_OUTPUT
+            echo "on_main=true"
+          else
+            echo "on_main=false" >> $GITHUB_OUTPUT
+            echo "on_main=false"
+          fi
+
+      - name: 🏷️ Get version tag and release name
+        id: get_version
+        run: |
+          # Use the version tag
+          tag="${GITHUB_REF##*/}"   # e.g., refs/tags/v1.2.3 -> v1.2.3
+          name="${tag#v}"           # Remove 'v' prefix if present, e.g., v1.2.3 -> 1.2.3
+          # If not on `main` branch, append short SHA for test releases
+          if [[ "${{ steps.tag_on_main.outputs.on_main }}" != "true" ]]; then
+            name="${name}-${{ steps.tag_sha.outputs.short_sha }}"
+          fi
+          echo "tag=$tag" >> $GITHUB_OUTPUT
+          echo "name=$name" >> $GITHUB_OUTPUT
+          echo "tag=$tag"
+          echo "name=$name"
+
+      # Create a release only if one does not already exist for this tag.
+      # We now check by *tag* instead of by name because:
+      # - The tag (e.g., "v1.2.3") is guaranteed unique in Git.
+      # - The release name (e.g., "1.2.3") differs only by the "v" prefix.
+      # - Our workflow enforces a strict 1:1 mapping between version → tag → release.
+      # - We no longer create multiple test releases with different tags for the same version.
+      # Therefore, a direct lookup by tag is the most reliable and deterministic check.
+      # https://github.com/marketplace/actions/github-script
+      - name: 🧪 Check if release exists with the same tag
+        id: release_exists
+        uses: actions/github-script@v9
+        with:
+          result-encoding: string
+          script: |
+            const tag  = '${{ steps.get_version.outputs.tag }}';
+            const name = '${{ steps.get_version.outputs.name }}';
+            try
+            {
+              await github.rest.repos.getReleaseByTag(
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag,
+              });
+              console.log(`Release "${name}" for tag ${tag} already exists. Skipping creating a release.`);
+              return true;
+            }
+            catch (error)
+            {
+              if (error.status === 404)
+              {
+                // No release exists for this tag
+                return false;
+              }
+              // Any other error is a real failure
+              throw error;
+            }
+
+      # Create the GitHub Release for this version.
+      # The release tag (e.g., "v1.2.3") is the canonical identifier and is guaranteed unique.
+      # The release name (e.g., "1.2.3") differs only by the "v" prefix but still maps 1:1 to the tag.
+      # Since we now check for existing releases by tag, this step only runs when no release exists
+      # for the version produced by get_version.
+      # https://github.com/marketplace/actions/gh-release
+      - name: 🚀 Create GitHub Release
+        if: ${{ steps.release_exists.outputs.result != 'true' }}
+        uses: softprops/action-gh-release@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.get_version.outputs.tag }}
+          name:     ${{ steps.get_version.outputs.name }}
+          make_latest: ${{ steps.tag_on_main.outputs.on_main == 'true' }}
+          draft:       ${{ steps.tag_on_main.outputs.on_main != 'true' }}
+          # There is also a `prerelease` property. (Example: if manual start, which implies no v tag)
+          #prerelease: ${{ github.event_name == 'workflow_dispatch' }}
+          files: |
+            ${{ env.PUBLISH_FILES_PATH_LINUX }}/*
+          generate_release_notes: true
+
+      - name: 🗒️ Output release info
+        if: ${{ steps.release_exists.outputs.result != 'true' }}
+        run: |
+          echo "Release ${{ steps.get_version.outputs.name }} created on tag ${{ steps.get_version.outputs.tag }}"
+
+  #
+  # https://docs.github.com/en/actions/how-tos/writing-workflows/choosing-when-your-workflow-runs/using-conditions-to-control-job-execution
+  # "A job that is skipped will report its status as "Success"."
+  # https://docs.github.com/en/actions/how-tos/writing-workflows/choosing-what-your-workflow-does/using-jobs-in-a-workflow
+  # "If a job fails or is skipped, all jobs that need it are skipped unless
+  #  the jobs use a conditional expression that causes the job to continue."
+  #
+  cleanup:
+    name: 🧹 Clean up artifacts
+    needs: release
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+
+    steps:
+      # Delete publish artifact so it does not count against storage
+      # https://github.com/marketplace/actions/delete-artifact
+      - name: ❌ Delete build artifact
+        uses: GeekyEggo/delete-artifact@v6
+        with:
+          name: ${{ env.ARTIFACT_PACKAGE }}
+          failOnError: false

@@ -6,7 +6,7 @@ Drag & drop files from anywhere in Windows onto the NameTwister window. Then ent
 simple search & replace text (such as replace "cat" with "dog") or more complex
 [regular expressions](https://docs.microsoft.com/en-us/dotnet/standard/base-types/regular-expressions).
 
-![NameTwister](https://raw.githubusercontent.com/skst/NameTwister/master/NameTwister.png)
+![NameTwister](https://raw.githubusercontent.com/12noonLLC/NameTwister/master/NameTwister.png)
 
 In the target expression, you can use `$1` through `$9` for groups you matched in the source expression.
 

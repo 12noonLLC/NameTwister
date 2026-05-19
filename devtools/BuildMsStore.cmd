@@ -1,0 +1,233 @@
+@echo off
+rem
+rem	Perform a clean restore and build.
+rem	Run all unit tests.
+rem	Publish a standalone application.
+rem	Create an app bundle for the Microsoft Store.
+rem
+
+setlocal EnableExtensions EnableDelayedExpansion
+
+if NOT EXIST "NameTwister.slnx" (
+  echo Run this script from the solution folder.
+  goto :EOF
+)
+
+echo.
+echo To avoid errors on locked files and folders, such as PackageLayout, etc.:
+echo    - Pause Onedrive
+echo    - Exit Visual Studio
+echo.
+echo Update the version in:
+echo    - Directory.Build.props
+echo    - NameTwister.Package\Package.appxmanifest
+
+::
+:: SETUP
+::
+
+set PROJECT=NameTwister
+set ARCHIVE_NAME=%PROJECT%
+set BUILD_OUTPUT_ROOT=C:\VSIntermediate\%PROJECT%
+set ARTIFACTS_PATH=%BUILD_OUTPUT_ROOT%\artifacts
+set PUBLISH_MSIX_PATH=%BUILD_OUTPUT_ROOT%\AppPackages
+set PUBLISH_FILES_PATH=%BUILD_OUTPUT_ROOT%\publish
+set DIRECTORY_BUILD_PROPS=.\Directory.Build.props
+set PROJECT_APP_PATH=.\%PROJECT%\%PROJECT%.csproj
+set TARGET_EXE_PATH=%ARTIFACTS_PATH%\bin\%PROJECT%\release_win-x64\%PROJECT%.exe
+set PROJECT_TESTS_PATH=.\%PROJECT%.UnitTests\%PROJECT%.UnitTests.csproj
+set PROJECT_WAP_DIR=.\%PROJECT%.Package
+set PROJECT_WAP_PATH=%PROJECT_WAP_DIR%\%PROJECT%.Package.wapproj
+set PROJECT_MANIFEST_PATH=%PROJECT_WAP_DIR%\Package.appxmanifest
+
+::
+:: LOCATE MSBuild.exe
+::
+
+REM C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\amd64
+set VSWHERE_EXE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe
+set MSBUILD_EXE=
+if exist "%VSWHERE_EXE%" (
+	for /f "usebackq delims=" %%I in (`"%VSWHERE_EXE%" -latest -products * -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\amd64\MSBuild.exe`) do (
+		if not defined MSBUILD_EXE set "MSBUILD_EXE=%%I"
+	)
+)
+
+if not defined MSBUILD_EXE (
+	for /f "usebackq delims=" %%I in (`where msbuild.exe 2^>nul`) do (
+		if not defined MSBUILD_EXE set "MSBUILD_EXE=%%I"
+	)
+)
+
+if not defined MSBUILD_EXE (
+	echo ERROR: Unable to find MSBuild.exe using vswhere or PATH.
+	exit /b 1
+)
+
+echo.
+echo Using MSBuild: "%MSBUILD_EXE%"
+
+::
+:: PRE-BUILD CHECKS
+::
+
+echo.
+echo === COMPARE VERSIONS IN Directory.Build.props AND Package.appxmanifest ===
+echo.
+
+rem === 1. Locate the Directory.Build.props file ===
+if not exist "%DIRECTORY_BUILD_PROPS%" (
+	echo ERROR: Version file not found: %DIRECTORY_BUILD_PROPS%
+	exit /b 1
+)
+
+rem === 2. Extract VersionPrefix from Directory.Build.props ===
+for /f "usebackq delims=" %%V in (`
+	powershell -NoLogo -NoProfile -Command ^
+		"[xml]$x = Get-Content '%DIRECTORY_BUILD_PROPS%'; $x.Project.PropertyGroup.VersionPrefix"
+`) do set "VERSION_PREFIX=%%V"
+
+if "%VERSION_PREFIX%" == "" (
+	echo ERROR: VersionPrefix not found in %DIRECTORY_BUILD_PROPS%
+	exit /b 1
+)
+
+rem === 3. Locate the manifest ===
+if not exist "%PROJECT_MANIFEST_PATH%" (
+	echo ERROR: Manifest not found: %PROJECT_MANIFEST_PATH%
+	exit /b 1
+)
+
+rem === 4. Extract Identity.Version from manifest ===
+for /f "usebackq delims=" %%V in (`
+	powershell -NoLogo -NoProfile -Command ^
+		"[xml]$x = Get-Content '%PROJECT_MANIFEST_PATH%'; $x.Package.Identity.Version"
+`) do set "MANIFEST_VERSION=%%V"
+
+if "%MANIFEST_VERSION%" == "" (
+	echo ERROR: Identity.Version not found in manifest
+	exit /b 1
+)
+
+rem === 5. Compare manifest version to VersionPrefix + ".0" ===
+set EXPECTED=%VERSION_PREFIX%.0
+if "%MANIFEST_VERSION%" neq "%EXPECTED%" (
+	echo ERROR: Version mismatch.
+	echo   Directory.Build.props: %VERSION_PREFIX%
+	echo   Package.appxmanifest:  %MANIFEST_VERSION%
+	exit /b 1
+)
+
+echo Version check successful: %MANIFEST_VERSION% matches %EXPECTED%
+
+set VERSION=%VERSION_PREFIX%
+
+echo.
+choice /c YN /n /m "Press N to quit, Y to continue: "
+if errorlevel 2 (
+	echo Quitting...
+	exit /b 0
+)
+
+::
+:: BUILD
+::
+
+echo.
+echo === DOTNET CLEAN ===
+dotnet clean "%PROJECT_APP_PATH%" --runtime win-x64
+if errorlevel 1 exit /b %ERRORLEVEL%
+dotnet clean "%PROJECT_TESTS_PATH%"
+if errorlevel 1 exit /b %ERRORLEVEL%
+
+echo.
+echo === DOTNET RESTORE ===
+dotnet restore "%PROJECT_APP_PATH%" --runtime win-x64
+if errorlevel 1 exit /b %ERRORLEVEL%
+dotnet restore "%PROJECT_TESTS_PATH%"
+if errorlevel 1 exit /b %ERRORLEVEL%
+
+echo.
+echo === DOTNET BUILD RELEASE ===
+dotnet build ^
+	"%PROJECT_APP_PATH%" ^
+	--configuration Release ^
+	--no-restore
+
+if errorlevel 1 exit /b %ERRORLEVEL%
+
+echo.
+echo === VERIFY TARGET PROPERTIES ===
+if exist "%TARGET_EXE_PATH%" (
+	sigcheck.exe -nobanner "%TARGET_EXE_PATH%"
+) else (
+	echo File does not exist: "%TARGET_EXE_PATH%"
+	exit /b
+)
+
+::
+:: TESTS
+::
+
+echo.
+echo === DOTNET BUILD UNIT TESTS ===
+dotnet build ^
+	"%PROJECT_TESTS_PATH%" ^
+	--configuration Release ^
+	--no-restore
+
+if errorlevel 1 exit /b %ERRORLEVEL%
+
+echo.
+echo === DOTNET TEST ===
+dotnet test ^
+	--project "%PROJECT_TESTS_PATH%" ^
+	--configuration Release ^
+	--no-restore ^
+	--no-build ^
+	--no-ansi ^
+	--no-progress ^
+	--output detailed
+
+if errorlevel 1 exit /b %ERRORLEVEL%
+
+::
+:: PUBLISH
+::
+
+echo.
+echo === DOTNET PUBLISH (Standalone) ===
+dotnet publish ^
+	"%PROJECT_APP_PATH%" ^
+	--configuration Release ^
+	--no-restore ^
+	--property:Platform=x64 ^
+	--property:RuntimeIdentifier=win-x64 ^
+	--property:PublishProtocol=FileSystem ^
+	--property:SelfContained=true ^
+	--property:PublishReadyToRun=false ^
+	--property:PublishTrimmed=false ^
+	--property:PublishSingleFile=true ^
+	--property:PublishDir="%PUBLISH_FILES_PATH%"
+
+if errorlevel 1 exit /b %ERRORLEVEL%
+
+pushd "%PUBLISH_FILES_PATH%"
+nanazipc.exe u -tzip "%BUILD_OUTPUT_ROOT%\%ARCHIVE_NAME%_%VERSION%.zip" *.*
+popd
+
+echo.
+echo === DOTNET PUBLISH (MS Store) ===
+"%MSBUILD_EXE%" ^
+	"%PROJECT_WAP_PATH%" ^
+	-property:Configuration=Release ^
+	-property:Platform=x64 ^
+	-property:UapAppxPackageBuildMode=StoreUpload ^
+	-property:AppxPackageDir="%PUBLISH_MSIX_PATH%" ^
+	-verbosity:quiet
+
+if errorlevel 1 exit /b %ERRORLEVEL%
+
+echo Publish successful.
+
+endlocal

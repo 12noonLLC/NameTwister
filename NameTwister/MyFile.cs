@@ -46,7 +46,7 @@ public class MyFile : Shared.MyNotifyPropertyChanged, IEqualityComparer<MyFile>
 
 	public string SourcePath() => Path.Combine(FolderPath, SourceName);
 	public string TargetPath() => Path.Combine(FolderPath, TargetName);
-	public bool AreSourceTargetFilenamesSame() => (String.Compare(SourcePath(), TargetPath(), ignoreCase: false) == 0);
+	public bool AreSourceTargetFilenamesSame() => (string.Compare(SourcePath(), TargetPath(), ignoreCase: false) == 0);
 
 
 
@@ -55,7 +55,7 @@ public class MyFile : Shared.MyNotifyPropertyChanged, IEqualityComparer<MyFile>
 		FileInfo info = new(pathSource);
 		SourceName = info.Name;
 		TargetName = SourceName;
-		FolderPath = info.DirectoryName ?? String.Empty;
+		FolderPath = info.DirectoryName ?? string.Empty;
 	}
 
 
@@ -116,10 +116,7 @@ public class MyFile : Shared.MyNotifyPropertyChanged, IEqualityComparer<MyFile>
 		return (x.SourceName.Equals(y.SourceName, StringComparison.CurrentCultureIgnoreCase) && x.FolderPath.Equals(y.FolderPath, StringComparison.CurrentCultureIgnoreCase));
 	}
 
-	public int GetHashCode(MyFile obj)
-	{
-		return SourceName.GetHashCode() ^ TargetName.GetHashCode() ^ FolderPath.GetHashCode();
-	}
+	public int GetHashCode(MyFile obj) => HashCode.Combine(obj.SourceName, obj.TargetName, obj.FolderPath);
 
 	#endregion IEqualityComparer Methods
 }

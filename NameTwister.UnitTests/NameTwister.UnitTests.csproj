@@ -1,21 +1,22 @@
-﻿<Project Sdk="MSTest.Sdk/3.3.1">
+﻿<Project Sdk="MSTest.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <Platforms>x64</Platforms>
 
-    <Product>NameTwister</Product>
-    <Authors>Stefan K.S. Tucker</Authors>
-    <Company>12noon</Company>
-
     <Nullable>enable</Nullable>
+	 <ImplicitUsings>disable</ImplicitUsings>
   </PropertyGroup>
 
-  <ItemGroup>
+	<PropertyGroup>
+		<TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+	</PropertyGroup>
+
+	<ItemGroup>
     <Compile Include="..\NameTwister\MyFile.cs" Link="MyFile.cs" />
-    <Compile Include="..\NameTwister\Shared\MyNotifyPropertyChanged.cs" Link="Shared\MyNotifyPropertyChanged.cs" />
-    <Compile Include="..\NameTwister\Shared\MyStorage.cs" Link="Shared\MyStorage.cs" />
     <Compile Include="..\NameTwister\ViewModel.cs" Link="ViewModel.cs" />
+    <Compile Include="..\NameTwister\Shared\MyStorage.cs" Link="Shared\MyStorage.cs" />
+    <Compile Include="..\NameTwister\Shared\MyNotifyPropertyChanged.cs" Link="Shared\MyNotifyPropertyChanged.cs" />
   </ItemGroup>
 
   <ItemGroup>
